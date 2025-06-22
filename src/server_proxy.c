@@ -4,14 +4,26 @@
 #include <stdint.h>
 #include <shlwapi.h>
 #include "MinHook.h"   // MinHook-Header
-#include <stdio.h>
-#include "hooklog.h"
 
 #pragma comment(lib, "MinHook.x86.lib")  // oder MinHook.x64.lib
 #pragma comment(lib, "Shlwapi.lib")
 
 // -----------------------------------------------------------------------------
 // Logging
+static HANDLE logFile = INVALID_HANDLE_VALUE;
+static CRITICAL_SECTION logLock;
+#define LOG(fmt, ...)                                         \
+    do {                                                      \
+        EnterCriticalSection(&logLock);                       \
+        if (logFile != INVALID_HANDLE_VALUE) {                \
+            char _buf[256];                                   \
+            int  _len = _snprintf_s(_buf, sizeof(_buf),      \
+                                   _TRUNCATE, fmt, __VA_ARGS__); \
+            DWORD _w;                                         \
+            WriteFile(logFile, _buf, _len, &_w, NULL);        \
+        }                                                     \
+        LeaveCriticalSection(&logLock);                       \
+    } while (0)
 
 // -----------------------------------------------------------------------------
 // Prototypen der Original-Funktionen in server.dll
@@ -23,18 +35,17 @@ static pF3720_t  real_F3720  = NULL;
 // -----------------------------------------------------------------------------
 // Unsere Detour
 
-// 1) High-Level-Receive: nur anwenden, wenn totalLen > 3
+// 1) High-Level-Receive: bei negativem Return 0 zurückgeben
 static int WINAPI detour_F3720(int *ctx, int received, int totalLen) {
     int ret = real_F3720(ctx, received, totalLen);
-    LOG("[SERVER HOOK] detour_F3720 called, totalLen=%d, ret=%d\n", totalLen, ret);
-    if (totalLen > 3 && ret < 0) {
-        LOG("[SERVER HOOK] detour_F3720 error & length>3 -> clearing ctx[0xE] & return 0\n");
-        ctx[0xE] = 0;
-        return 0;
+    LOG("[SERVER HOOK] detour_F3720 called, ret=%d\n", ret);
+    if(ctx[0xE]<0){
+        ctx[0xE]=0;
+        LOG("[SERVER HOOK] detour_F3720 adjusted negative ctx[0xE] to 0\n");
     }
-    if (ctx[0xE]<0){
-        LOG("[SERVER HOOK] detour_F3720 error & length>3 -> clearing ctx[0xE] & return output\n");
-        ctx[0xE] = 0;
+    if (ret < 0) {
+        LOG("[SERVER HOOK] detour_F3720 adjusted negative ret to 0\n");
+        return 0;
     }
     return ret;
 }

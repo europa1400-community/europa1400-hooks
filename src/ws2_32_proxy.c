@@ -10,13 +10,48 @@
 #include <stdint.h>
 #include <stdio.h>
 #include "MinHook.h"
-#include "hooklog.h"
 
 #pragma comment(lib, "MinHook.x86.lib")
 #pragma comment(lib, "Ws2_32.lib")
 #pragma comment(lib, "Psapi.lib")
 #pragma comment(lib, "Shlwapi.lib")
 #pragma comment(lib, "legacy_stdio_definitions.lib")  // für _snprintf_s
+
+// -----------------------------------------------------------------------------
+// Logging mit Zeilenzähler und Roll-Over
+static HANDLE           logFile       = INVALID_HANDLE_VALUE;
+static CRITICAL_SECTION logLock;
+static UINT32           logLineCount  = 0;      // Anzahl geschriebener Zeilen
+
+// Hilfsroutine: Logdatei zurücksetzen
+static void ResetLogFile(void) {
+    // Setzt den Dateizeiger auf 0 und kürzt die Datei
+    SetFilePointer(logFile, 0, NULL, FILE_BEGIN);
+    SetEndOfFile(logFile);
+    logLineCount = 0;
+}
+
+// Neues LOG-Macro mit Zeilenlimit
+#define LOG(fmt, ...)                                              \
+    do {                                                           \
+        EnterCriticalSection(&logLock);                            \
+        if (logFile != INVALID_HANDLE_VALUE) {                     \
+            /* Roll-Over prüfen */                                 \
+            if (++logLineCount > 200) {                            \
+                ResetLogFile();                                    \
+            }                                                      \
+            /* Log-Zeile schreiben */                              \
+            char _buf[256];                                        \
+            int  _len = _snprintf_s(                               \
+                _buf, sizeof(_buf), _TRUNCATE,                     \
+                fmt, __VA_ARGS__                                   \
+            );                                                     \
+            DWORD _w;                                              \
+            WriteFile(logFile, _buf, _len, &_w, NULL);             \
+        }                                                          \
+        LeaveCriticalSection(&logLock);                            \
+    } while (0)
+// -----------------------------------------------------------------------------
 
 // Original-Zeiger
 static int (WINAPI *real_recv)(SOCKET, char*, int, int)   = NULL;
@@ -33,6 +68,7 @@ static void initServerModuleRange(void) {
     if (GetModuleInformation(GetCurrentProcess(), hServ, &mi, sizeof(mi))) {
         serverBase = (uintptr_t)mi.lpBaseOfDll;
         serverSize = (size_t)mi.SizeOfImage;
+        //LOG("[HOOK] server.dll at %p size %zu\n", (void*)mi.lpBaseOfDll, mi.SizeOfImage);
     }
 }
 
@@ -43,10 +79,12 @@ static BOOL callerInServer(uintptr_t retAddr) {
 // -----------------------------------------------------------------------------
 // Hooked recv: nur bei Aufrufen aus server.dll unsere Logik
 int WINAPI hook_recv(SOCKET s, char *buf, int len, int flags) {
+    // lazy init server.dll range
     initServerModuleRange();
     if (!serverBase) {
         return real_recv(s, buf, len, flags);
     }
+    // Rücksprung-Adresse ermitteln
     CONTEXT ctx = {0}; 
     ctx.ContextFlags = CONTEXT_CONTROL;
     RtlCaptureContext(&ctx);
@@ -56,30 +94,25 @@ int WINAPI hook_recv(SOCKET s, char *buf, int len, int flags) {
     uintptr_t ret = ctx.Rip;
 #endif
     if (!callerInServer(ret)) {
+        // nicht aus server.dll: direkt weiterreichen
         return real_recv(s, buf, len, flags);
     }
 
-    // Nur loggen, wenn Paketlänge > 3
-    if (len > 3) {
-        LOG("[HOOK] recv from server.dll socket=%u len=%d flags=0x%X\n",
-            (unsigned)s, len, flags);
-    }
+    LOG("[HOOK] recv from server.dll socket=%u len=%d flags=0x%X\n",
+        (unsigned)s, len, flags);
 
     int result = real_recv(s, buf, len, flags);
     if (result == SOCKET_ERROR && WSAGetLastError() == WSAEWOULDBLOCK) {
-        if (len > 3) {
-            LOG("[HOOK] swallow WSAEWOULDBLOCK -> return 0\n");
-        }
+        LOG("[HOOK] swallow WSAEWOULDBLOCK -> return 0\n");
         return 0;
     }
-    if (len > 3) {
-        LOG("[HOOK] recv -> %d\n", result);
-    }
+    LOG("[HOOK] recv -> %d\n", result);
     return result;
 }
 
 // Hooked send: nur bei server.dll-Aufrufen retry bei WSAEWOULDBLOCK
 int WINAPI hook_send(SOCKET s, const char *buf, int len, int flags) {
+    // lazy init server.dll range
     initServerModuleRange();
     if (!serverBase) {
         return real_send(s, buf, len, flags);
@@ -96,11 +129,8 @@ int WINAPI hook_send(SOCKET s, const char *buf, int len, int flags) {
         return real_send(s, buf, len, flags);
     }
 
-    // Nur loggen, wenn Paketlänge > 3
-    if (len > 3) {
-        LOG("[HOOK] send to server.dll socket=%u len=%d flags=0x%X\n",
-            (unsigned)s, len, flags);
-    }
+    LOG("[HOOK] send to server.dll socket=%u len=%d flags=0x%X\n",
+        (unsigned)s, len, flags);
 
     int total = 0;
     while (total < len) {
@@ -111,16 +141,12 @@ int WINAPI hook_send(SOCKET s, const char *buf, int len, int flags) {
                 Sleep(1);
                 continue;
             }
-            if (len > 3) {
-                LOG("[HOOK] send error %d\n", err);
-            }
+            LOG("[HOOK] send error %d\n", err);
             return SOCKET_ERROR;
         }
         total += sent;
     }
-    if (len > 3) {
-        LOG("[HOOK] send total=%d\n", total);
-    }
+    LOG("[HOOK] send total=%d\n", total);
     return total;
 }
 
