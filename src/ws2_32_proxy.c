@@ -44,7 +44,7 @@ static void ResetLogFile(void) {
             char _buf[256];                                        \
             int  _len = _snprintf_s(                               \
                 _buf, sizeof(_buf), _TRUNCATE,                     \
-                fmt, __VA_ARGS__                                   \
+                fmt, ##__VA_ARGS__                                   \
             );                                                     \
             DWORD _w;                                              \
             WriteFile(logFile, _buf, _len, &_w, NULL);             \
