@@ -19,7 +19,7 @@ static CRITICAL_SECTION logLock;
         if (logFile != INVALID_HANDLE_VALUE) {                \
             char _buf[256];                                   \
             int  _len = _snprintf_s(_buf, sizeof(_buf),      \
-                                   _TRUNCATE, fmt, __VA_ARGS__); \
+                                   _TRUNCATE, fmt, ##__VA_ARGS__); \
             DWORD _w;                                         \
             WriteFile(logFile, _buf, _len, &_w, NULL);        \
         }                                                     \
