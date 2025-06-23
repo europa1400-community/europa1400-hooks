@@ -2,6 +2,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <shlwapi.h>
 #include "MinHook.h"   // MinHook-Header
 
