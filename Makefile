@@ -4,8 +4,11 @@ TARGET = x86-windows-gnu
 # C compiler to use (Zig acting as a C compiler)
 CC = zig cc -target $(TARGET)
 
+# Archiver to use (Zig acting as `ar`)
+AR = zig ar
+
 # Compiler flags
-CFLAGS = -Wall -O2
+CFLAGS = -Wall -O2 -fno-stack-protector
 
 # MinHook paths
 MINHOOK_DIR = vendor/minhook
@@ -47,12 +50,12 @@ $(INJECTOR_EXE): $(INJECTOR_SRC)
 # Rule to build MinHook static library
 $(MINHOOK_LIB):
 	@echo "Building MinHook static library..."
-	zig cc -target $(TARGET) -I$(MINHOOK_INC) -c $(MINHOOK_SRC)/buffer.c -o buffer.o
-	zig cc -target $(TARGET) -I$(MINHOOK_INC) -c $(MINHOOK_SRC)/hde/hde32.c -o hde32.o
-	zig cc -target $(TARGET) -I$(MINHOOK_INC) -c $(MINHOOK_SRC)/hde/hde64.c -o hde64.o
-	zig cc -target $(TARGET) -I$(MINHOOK_INC) -c $(MINHOOK_SRC)/hook.c -o hook.o
-	zig cc -target $(TARGET) -I$(MINHOOK_INC) -c $(MINHOOK_SRC)/trampoline.c -o trampoline.o
-	ar -rcs $(MINHOOK_LIB) buffer.o hde32.o hde64.o hook.o trampoline.o
+	$(CC) $(CFLAGS) -c $(MINHOOK_SRC)/buffer.c -o buffer.o
+	$(CC) $(CFLAGS) -c $(MINHOOK_SRC)/hde/hde32.c -o hde32.o
+	$(CC) $(CFLAGS) -c $(MINHOOK_SRC)/hde/hde64.c -o hde64.o
+	$(CC) $(CFLAGS) -c $(MINHOOK_SRC)/hook.c -o hook.o
+	$(CC) $(CFLAGS) -c $(MINHOOK_SRC)/trampoline.c -o trampoline.o
+	$(AR) -rcs $(MINHOOK_LIB) buffer.o hde32.o hde64.o hook.o trampoline.o
 	rm buffer.o hde32.o hde64.o hook.o trampoline.o
 
 # Generic rule to build DLLs
@@ -84,4 +87,4 @@ clean:
 	@rm -f The-Guild-1-HookDLLs.zip
 	@echo "Clean complete."
 
-.PHONY: all clean install package submodule 
+.PHONY: all clean install package submodule
