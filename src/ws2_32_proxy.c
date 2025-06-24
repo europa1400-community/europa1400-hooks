@@ -55,6 +55,42 @@ static void ResetLogFile(void) {
     } while (0)
 // -----------------------------------------------------------------------------
 
+// -----------------------------------------------------------------------------
+// Logging mit Zeilenzähler und Roll-Over
+static HANDLE           logFile       = INVALID_HANDLE_VALUE;
+static CRITICAL_SECTION logLock;
+static UINT32           logLineCount  = 0;      // Anzahl geschriebener Zeilen
+
+// Hilfsroutine: Logdatei zurücksetzen
+static void ResetLogFile(void) {
+    // Setzt den Dateizeiger auf 0 und kürzt die Datei
+    SetFilePointer(logFile, 0, NULL, FILE_BEGIN);
+    SetEndOfFile(logFile);
+    logLineCount = 0;
+}
+
+// Neues LOG-Macro mit Zeilenlimit
+#define LOG(fmt, ...)                                              \
+    do {                                                           \
+        EnterCriticalSection(&logLock);                            \
+        if (logFile != INVALID_HANDLE_VALUE) {                     \
+            /* Roll-Over prüfen */                                 \
+            if (++logLineCount > 200) {                            \
+                ResetLogFile();                                    \
+            }                                                      \
+            /* Log-Zeile schreiben */                              \
+            char _buf[256];                                        \
+            int  _len = _snprintf_s(                               \
+                _buf, sizeof(_buf), _TRUNCATE,                     \
+                fmt, ##__VA_ARGS__                                   \
+            );                                                     \
+            DWORD _w;                                              \
+            WriteFile(logFile, _buf, _len, &_w, NULL);             \
+        }                                                          \
+        LeaveCriticalSection(&logLock);                            \
+    } while (0)
+// -----------------------------------------------------------------------------
+
 // Original-Zeiger
 static int (WINAPI *real_recv)(SOCKET, char*, int, int)   = NULL;
 static int (WINAPI *real_send)(SOCKET, const char*, int, int) = NULL;
