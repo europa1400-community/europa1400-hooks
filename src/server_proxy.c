@@ -6,8 +6,10 @@
 #include <shlwapi.h>
 #include "MinHook.h"   // MinHook-Header
 
+#ifdef _MSC_VER
 #pragma comment(lib, "MinHook.x86.lib")  // oder MinHook.x64.lib
 #pragma comment(lib, "Shlwapi.lib")
+#endif
 
 // -----------------------------------------------------------------------------
 // Logging

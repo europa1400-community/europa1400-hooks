@@ -11,11 +11,13 @@
 #include <stdio.h>
 #include "MinHook.h"
 
+#ifdef _MSC_VER
 #pragma comment(lib, "MinHook.x86.lib")
 #pragma comment(lib, "Ws2_32.lib")
 #pragma comment(lib, "Psapi.lib")
 #pragma comment(lib, "Shlwapi.lib")
 #pragma comment(lib, "legacy_stdio_definitions.lib")  // für _snprintf_s
+#endif
 
 // -----------------------------------------------------------------------------
 // Logging mit Zeilenzähler und Roll-Over

@@ -3,7 +3,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include "MinHook.h"
+#ifdef _MSC_VER
 #pragma comment(lib, "MinHook.x86.lib")
+#endif
 
 // Funktionszeiger für das Original
 typedef DWORD (WINAPI *GetTickCount_t)(void);
