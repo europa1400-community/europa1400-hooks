@@ -88,7 +88,7 @@ int WINAPI hook_recv(SOCKET s, char *buf, int len, int flags) {
     CONTEXT ctx = {0}; 
     ctx.ContextFlags = CONTEXT_CONTROL;
     RtlCaptureContext(&ctx);
-#ifdef _M_IX86
+#if defined(_M_IX86) || defined(__i386__)
     uintptr_t ret = ctx.Eip;
 #else
     uintptr_t ret = ctx.Rip;
@@ -120,7 +120,7 @@ int WINAPI hook_send(SOCKET s, const char *buf, int len, int flags) {
     CONTEXT ctx = {0}; 
     ctx.ContextFlags = CONTEXT_CONTROL;
     RtlCaptureContext(&ctx);
-#ifdef _M_IX86
+#if defined(_M_IX86) || defined(__i386__)
     uintptr_t ret = ctx.Eip;
 #else
     uintptr_t ret = ctx.Rip;

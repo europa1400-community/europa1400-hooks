@@ -18,7 +18,7 @@ DWORD WINAPI hook_GetTickCount(void) {
     CONTEXT ctx = {0};
     ctx.ContextFlags = CONTEXT_CONTROL;
     RtlCaptureContext(&ctx);
-#ifdef _M_IX86
+#if defined(_M_IX86) || defined(__i386__)
     DWORD retAddr = ctx.Eip;
 #else
     DWORD retAddr = 0;
