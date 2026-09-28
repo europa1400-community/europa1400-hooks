@@ -2,18 +2,41 @@
   "version": "2.0.0",
 
   "tasks": [
-      {
+    {
+      "label": "Create Build Folders",
+      "type": "shell",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "if not exist build mkdir build & if not exist vendor\\minhook\\lib mkdir vendor\\minhook\\lib"
+      ],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Build MinHook from source (MSVC)",
+      "type": "shell",
+      "command": "cmd",
+      "dependsOn": ["Create Build Folders"],
+      "args": [
+        "/c",
+        "cl.exe /c /O2 /I include src\\buffer.c src\\hde\\hde32.c src\\hde\\hde64.c src\\hook.c src\\trampoline.c && lib.exe /OUT:lib\\MinHook.x86.lib buffer.obj hde32.obj hde64.obj hook.obj trampoline.obj && del buffer.obj hde32.obj hde64.obj hook.obj trampoline.obj"
+      ],
+      "options": { "cwd": "${workspaceFolder}\\vendor\\minhook" },
+      "problemMatcher": []
+    },
+    {
       "label": "Build hook_kernel32.dll",
       "type": "shell",
       "command": "cl.exe",
+      "dependsOn": ["Create Build Folders", "Build MinHook from source (MSVC)"],
       "args": [
-        "/LD",                                      // erstellt eine DLL
-        "/EHsc",                                    // C++ Exceptions
-        // Source
-        "src\\kernel32_proxy.c",
-        // MinHook-Header
-        "/I", "${workspaceFolder}\\vendor\\minhook\\include",
-        // Linker-Aufruf
+        "/LD",
+        "/EHsc",
+        "/Fo:kernel32_proxy.obj",
+        "/I",
+        "../vendor/minhook/include",
+        "../src/kernel32_proxy.c",
         "/link",
           "/LIBPATH:${workspaceFolder}\\vendor\\minhook\\lib",
           "MinHook.x86.lib",
@@ -22,9 +45,7 @@
           "/DEF:${workspaceFolder}\\docs\\kernel32.def",
           "/OUT:${workspaceFolder}\\release\\win32_release\\Server\\hook_kernel32.dll"
       ],
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
+      "options": { "cwd": "${workspaceFolder}/build" },
       "group": { "kind": "build", "isDefault": true },
       "problemMatcher": ["$msCompile"]
     },
@@ -32,11 +53,14 @@
       "label": "Build hook_ws2_32.dll",
       "type": "shell",
       "command": "cl.exe",
+      "dependsOn": ["Create Build Folders", "Build MinHook from source (MSVC)"],
       "args": [
         "/LD",
         "/EHsc",
-        "src\\ws2_32_proxy.c",
-        "/I", "${workspaceFolder}\\vendor\\minhook\\include",
+        "/Fo:ws2_32_proxy.obj",
+        "/I",
+        "../vendor/minhook/include",
+        "../src/ws2_32_proxy.c",
         "/link",
           "/LIBPATH:${workspaceFolder}\\vendor\\minhook\\lib",
           "MinHook.x86.lib",
@@ -46,10 +70,8 @@
           "/DEF:${workspaceFolder}\\docs\\ws2_32.def",
           "/OUT:${workspaceFolder}\\release\\win32_release\\Server\\hook_ws2_32.dll"
       ],
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
-      "group":{"kind":"build"},
+      "options": { "cwd": "${workspaceFolder}/build" },
+      "group": {"kind":"build"},
       "problemMatcher":["$msCompile"]
     },
     {
@@ -72,14 +94,32 @@
   },
       "group": { "kind": "build", "isDefault": true },
       "problemMatcher": ["$msCompile"]
-    },  
-      {
-      "label": "Build All Proxies",
+    },
+    {
+      "label": "Copy all artifacts to release",
+      "type": "shell",
+      "command": "cmd",
       "dependsOn": [
-        "Build ws2_32 proxy",
-        "Build kernel32 proxy"
-        "Build server proxy"
+        "Build hook_ws2_32.dll",
+        "Build hook_kernel32.dll",
+        "Build hook_server.dll",
+        "Build injector.exe"
       ],
-      "group": { "kind": "build", "isDefault": false }}
+      "args": [
+        "/c",
+        "copy /Y hook_ws2_32.dll ..\\release\\win32_release\\Server\\hook_ws2_32.dll >nul & copy /Y hook_kernel32.dll ..\\release\\win32_release\\Server\\hook_kernel32.dll >nul & copy /Y hook_server.dll ..\\release\\win32_release\\Server\\hook_server.dll >nul & copy /Y injector.exe ..\\release\\win32_release\\injector.exe >nul"
+      ],
+      "options": { "cwd": "${workspaceFolder}/build" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Build All",
+      "dependsOn": [
+        "Create Build Folders",
+        "Build MinHook from source (MSVC)",
+        "Copy all artifacts to release"
+      ],
+      "group": { "kind": "build", "isDefault": false }
+    }
   ]
 }
