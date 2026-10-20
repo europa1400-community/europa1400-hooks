@@ -4,11 +4,16 @@ on:
     branches:
       - main # Only run on pushes to the main branch
       - 'release/**' # And release branches
+    tags:
+      - 'v*'
   pull_request:
     branches:
       - main
       - 'release/**'
   workflow_dispatch: # Allows manual triggering from GitHub UI
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -39,8 +44,8 @@ jobs:
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         with:
-          tag_name: latest
-          name: Latest Build
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'latest' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'Latest Build' }}
           files: The-Guild-1-HookDLLs-x86-windows-gnu.zip

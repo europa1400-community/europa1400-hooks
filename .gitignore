@@ -13,3 +13,9 @@ bin/
 
 # Do NOT ignore the original server.dll in release/server/
 !release/Server/server.dll
+
+# Local compiler outputs and integration records
+*.exe
+*.pdb
+.zig-cache/
+zig-out/
