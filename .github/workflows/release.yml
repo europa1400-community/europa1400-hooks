@@ -1,0 +1,81 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Triggers on version tags like v1.0.0
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Create build folders
+        run: |
+          mkdir build
+          mkdir vendor\minhook\lib
+
+      - name: Build MinHook from source
+        run: |
+          cd vendor\minhook
+          cl.exe /c /O2 /I include src\buffer.c src\hde\hde32.c src\hde\hde64.c src\hook.c src\trampoline.c
+          lib.exe /OUT:lib\MinHook.x86.lib buffer.obj hde32.obj hde64.obj hook.obj trampoline.obj
+          del buffer.obj hde32.obj hde64.obj hook.obj trampoline.obj
+
+      - name: Build hook_kernel32.dll
+        run: |
+          cd build
+          cl.exe /LD /EHsc /Fo:kernel32_proxy.obj /I ../vendor/minhook/include ../src/kernel32_proxy.c /link /LIBPATH:../vendor/minhook/lib MinHook.x86.lib kernel32.lib /DEF:../docs/kernel32.def /OUT:hook_kernel32.dll
+
+      - name: Build hook_ws2_32.dll
+        run: |
+          cd build
+          cl.exe /LD /EHsc /Fo:ws2_32_proxy.obj /I ../vendor/minhook/include ../src/ws2_32_proxy.c /link /LIBPATH:../vendor/minhook/lib MinHook.x86.lib Ws2_32.lib Shlwapi.lib User32.lib /DEF:../docs/ws2_32.def /OUT:hook_ws2_32.dll
+
+      - name: Build hook_server.dll
+        run: |
+          cd build
+          cl.exe /LD /Fo:server_proxy.obj /I ../vendor/minhook/include ../src/server_proxy.c /link /LIBPATH:../vendor/minhook/lib MinHook.x86.lib Shlwapi.lib legacy_stdio_definitions.lib /OUT:hook_server.dll
+
+      - name: Build injector.exe
+        run: |
+          cd build
+          cl.exe /Fo:injector.obj /I ../vendor/minhook/include ../src/injector.c /Fe:injector.exe
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: |
+            build/hook_kernel32.dll
+            build/hook_ws2_32.dll
+            build/hook_server.dll
+            build/injector.exe
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+          path: release
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/hook_kernel32.dll
+            release/hook_ws2_32.dll
+            release/hook_server.dll
+            release/injector.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
